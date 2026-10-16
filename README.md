@@ -9,6 +9,8 @@ Platform services: private registry, reverse proxy with TLS, internal DNS, quota
 
 ## Topology
 
+![Topology](docs/architecture.png)
+
 ```text
                     +------------------ INTERNET ------------------+
                     |  ISP Router (port 80/443 -> Proxmox host)   |
