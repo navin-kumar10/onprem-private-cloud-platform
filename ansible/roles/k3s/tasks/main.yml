@@ -1,0 +1,19 @@
+---
+- name: Install k3s server (tools node)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if [ ! -f /etc/rancher/k3s/k3s.yaml ]; then
+      curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_EXEC="--disable traefik --write-kubeconfig-mode 644 --tls-san {{ ansible_host }}" \
+        K3S_TOKEN="{{ k3s_token }}" \
+        sh -s - server --cluster-init
+    fi
+  args:
+    creates: /etc/rancher/k3s/k3s.yaml
+  vars:
+    k3s_token: "{{ lookup('env', 'K3S_TOKEN') | default('changeme-replace-via-vault', true) }}"
+
+- name: Ensure kubeconfig readable by ops
+  ansible.builtin.file:
+    path: /etc/rancher/k3s/k3s.yaml
+    mode: "0644"

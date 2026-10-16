@@ -1,0 +1,26 @@
+---
+- name: Run node-exporter
+  community.docker.docker_container:
+    name: node-exporter
+    image: prom/node-exporter:v1.8.2
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "9100:9100"
+    command: ["--path.rootfs=/host"]
+    volumes:
+      - "/:/host:ro,rslave"
+
+- name: Run cadvisor
+  community.docker.docker_container:
+    name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:ro"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker/:/var/lib/docker:ro"

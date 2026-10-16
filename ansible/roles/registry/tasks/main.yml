@@ -1,0 +1,35 @@
+---
+- name: Create registry dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /opt/registry/data
+    - /opt/registry/auth
+    - /opt/registry/certs
+
+- name: Create htpasswd (requires apache2-utils / passlib on controller)
+  ansible.builtin.copy:
+    dest: /opt/registry/auth/htpasswd
+    mode: "0640"
+    content: "{{ registry_htpasswd | default('admin:$2y$05$PLACEHOLDER_REPLACE_VIA_VAULT') }}\n"
+  no_log: true
+
+- name: Run private registry
+  community.docker.docker_container:
+    name: registry
+    image: registry:2.8.3
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - /opt/registry/data:/var/lib/registry
+      - /opt/registry/auth:/auth:ro
+      - /opt/registry/certs:/certs:ro
+    env:
+      REGISTRY_HTTP_ADDR: "0.0.0.0:5000"
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: "private-registry"
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd

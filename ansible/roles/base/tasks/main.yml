@@ -1,0 +1,55 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - qemu-guest-agent
+      - curl
+      - ca-certificates
+      - vim
+      - htop
+      - chrony
+      - unattended-upgrades
+      - fail2ban
+      - python3
+    state: present
+
+- name: Ensure services enabled
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - qemu-guest-agent
+    - chrony
+    - fail2ban
+
+- name: Create ops user
+  ansible.builtin.user:
+    name: ops
+    shell: /bin/bash
+    groups: sudo,docker
+    append: true
+    create_home: true
+
+- name: Harden SSH (no password auth, no root login)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-hardening.conf
+    mode: "0600"
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      ChallengeResponseAuthentication no
+  notify: Restart sshd
+
+- name: Enable unattended upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";

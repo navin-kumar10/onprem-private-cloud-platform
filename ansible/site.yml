@@ -1,0 +1,60 @@
+---
+- name: Base hardening for all nodes
+  hosts: all
+  become: true
+  roles:
+    - base
+
+- name: Install Docker
+  hosts: all
+  become: true
+  roles:
+    - docker
+  tags: [docker]
+
+- name: Private registry (tools only)
+  hosts: tools
+  become: true
+  roles:
+    - registry
+  tags: [registry]
+
+- name: Reverse proxy with TLS (tools only)
+  hosts: tools
+  become: true
+  roles:
+    - reverse-proxy
+  tags: [reverse-proxy]
+
+- name: Monitoring agents
+  hosts: all
+  become: true
+  roles:
+    - monitoring
+  tags: [monitoring]
+
+- name: k3s server
+  hosts: k3s_server
+  become: true
+  roles:
+    - k3s
+  tags: [k3s]
+
+- name: k3s agents join
+  hosts: k3s_agent
+  become: true
+  tasks:
+    - name: Join agent to cluster
+      ansible.builtin.shell: |
+        set -euo pipefail
+        if [ ! -f /etc/rancher/k3s/config.yaml ]; then
+          curl -sfL https://get.k3s.io | \
+            K3S_URL="https://{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}:6443" \
+            K3S_TOKEN="{{ k3s_token }}" \
+            sh -
+        fi
+      args:
+        creates: /usr/local/bin/k3s-agent
+      vars:
+        k3s_token: "{{ lookup('env', 'K3S_TOKEN') | default('changeme-replace-via-vault', true) }}"
+      tags: [k3s]

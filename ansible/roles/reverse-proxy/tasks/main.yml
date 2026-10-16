@@ -1,0 +1,62 @@
+---
+- name: Install nginx
+  ansible.builtin.apt:
+    name: [nginx, certbot, python3-certbot-nginx]
+    state: present
+    update_cache: true
+
+- name: Write internal reverse-proxy vhost
+  ansible.builtin.copy:
+    dest: /etc/nginx/sites-available/lab.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible — tools reverse proxy
+      upstream registry_up { server 127.0.0.1:5000; }
+      upstream gitea_up { server 127.0.0.1:3000; }
+      upstream grafana_up { server 127.0.0.1:3001; }
+
+      server {
+        listen 80;
+        server_name _;
+        location /.well-known/acme-challenge/ { root /var/www/html; }
+        location / { return 301 https://$host$request_uri; }
+      }
+
+      server {
+        listen 443 ssl;
+        server_name registry.{{ domain }} grafana.{{ domain }} git.{{ domain }};
+        ssl_certificate /opt/registry/certs/fullchain.pem;
+        ssl_certificate_key /opt/registry/certs/privkey.pem;
+
+        location / {
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_pass http://gitea_up;
+        }
+        location /v2/ {
+          proxy_pass http://registry_up;
+        }
+      }
+  notify: Reload nginx
+
+- name: Enable site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/lab.conf
+    dest: /etc/nginx/sites-enabled/lab.conf
+    state: link
+  notify: Reload nginx
+
+- name: Install dnsmasq for internal DNS
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+
+- name: Configure wildcard DNS
+  ansible.builtin.copy:
+    dest: /etc/dnsmasq.d/99-lab.conf
+    mode: "0644"
+    content: |
+      address=/.{{ domain }}/10.10.0.10
+      listen-address=10.10.0.10,127.0.0.1
+      bind-interfaces
+  notify: Restart dnsmasq

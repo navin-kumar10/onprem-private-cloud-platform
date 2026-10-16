@@ -1,0 +1,38 @@
+name: lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Yamllint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: "ansible docker k8s monitoring .github"
+          config_file: .yamllint.yml
+
+      - name: Ansible lint
+        uses: ansible/ansible-lint@v24
+        with:
+          args: "ansible/site.yml"
+
+      - name: Terraform validate
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - run: terraform -chdir=terraform/proxmox init -backend=false
+      - run: terraform -chdir=terraform/proxmox validate
+      - run: terraform -chdir=terraform/proxmox fmt -check -diff
+
+      - name: Python test
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: pytest -q
+      - run: python3 scripts/cost-compare.py
